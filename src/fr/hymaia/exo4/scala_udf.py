@@ -1,31 +1,42 @@
+import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 from pyspark.sql.column import Column, _to_java_column, _to_seq
-from pyspark.sql.types import IntegerType
 import time
 
-# Create SparkSession with the JAR file in the configuration
-spark = SparkSession.builder \
-    .appName("exo4") \
-    .master("local[*]") \
-    .config('spark.jars', './src/resources/exo4/udf.jar') \
-    .getOrCreate()
+# Créer la session Spark
+spark = SparkSession.builder.appName("exo4_scala")\
+        .master("local[*]")\
+        .config('spark.jars', 'src/resources/exo4/udf.jar')\
+        .getOrCreate()
 
-# Define Python function to wrap the Scala UDF
-def category_name(col):
+start_time = time.time()
+
+# Définir la fonction addCategoryName pour appeler l'UDF Scala
+def addCategoryName(col):
     sc = spark.sparkContext
     add_category_name_udf = sc._jvm.fr.hymaia.sparkfordev.udf.Exo4.addCategoryNameCol()
     return Column(add_category_name_udf.apply(_to_seq(sc, [col], _to_java_column)))
 
-# Load data
-df = spark.read.csv('./src/resources/exo4/sell.csv', header=True)
+# Charger les données à partir du fichier CSV
+dfSell = spark.read.option("header", "true").csv("src/resources/exo4/sell.csv")
 
-start_time = time.time()
-# Convert 'category' column to IntegerType
-df = df.withColumn('category', df['category'].cast(IntegerType()))
+# Transformation de colonnes
+dfTransformed = dfSell.withColumn("category", dfSell['category'].cast("int"))
+dfTransformed = dfTransformed.withColumn("price", dfTransformed['price'].cast("double"))
 
-# Use UDF to add new column
-df = df.withColumn('category_name', category_name(df['category']))
+# Persiste après la transformation de colonnes
+dfTransformed.persist()
 
-df.show()
+# Ajouter une colonne category_name en utilisant l'UDF Scala
+dfCateName = dfTransformed.withColumn("category_name", addCategoryName(F.col("category")))
+
+# Filtrer les données pour les catégories supérieures à 5
+dfFiltered = dfCateName.filter(dfCateName['category'] > 5)
+
+# Effectuer le groupement par category_name et compter
+df = dfFiltered.groupBy('category_name').count()
+
+# Mesurer le temps d'exécution
 end_time = time.time()
-print(" scala Execution time: {} seconds".format(end_time - start_time))
+execution_time = end_time - start_time
+print("Temps d'exécution scala_udf avec persiste après la transformation de colonnes :", execution_time, "secondes")
