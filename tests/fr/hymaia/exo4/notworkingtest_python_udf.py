@@ -1,20 +1,20 @@
 import unittest
-from src.fr.hymaia.exo4.no_udf import main
-from tests.fr.hymaia.spark_test_case import spark
-from src.fr.hymaia.exo4.no_udf import addCategoryName
 from pyspark.sql import Row
-from pyspark.sql.functions import col
+from tests.fr.hymaia.spark_test_case import spark
+from src.fr.hymaia.exo4.python_udf import addCategoryName
 
-class TestNoUDF(unittest.TestCase):
+class TestPythonUDF(unittest.TestCase):
+    def setUp(self):
+        self.spark = SparkSession.builder.appName("test").master("local[*]").getOrCreate()
 
-    def test_add_category_name(self):
+    def test_addCategoryName(self):
         # Create a DataFrame for testing
         test_data = [Row(id=1, date="2019-02-17", category=6, price=40.0),
                      Row(id=2, date="2019-02-18", category=5, price=50.0)]
-        df = spark.createDataFrame(test_data)
+        df = self.spark.createDataFrame(test_data)
 
-        # Apply the addCategoryName function to the 'category' column
-        df = df.withColumn("category_name", addCategoryName(col("category")))
+        # Apply the addCategoryName function
+        df = addCategoryName(df)
 
         # Collect the result to the driver
         result = df.collect()
@@ -25,7 +25,7 @@ class TestNoUDF(unittest.TestCase):
         self.assertEqual(result[1]["category_name"], "food")
 
     def tearDown(self):
-        spark.stop()
+        self.spark.stop()
 
 if __name__ == "__main__":
     unittest.main()
