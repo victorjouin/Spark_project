@@ -3,6 +3,10 @@ from pyspark.sql.functions import col, when, sum
 import time
 from pyspark.sql.window import Window
 
+def addCategoryName(col):
+    return when(col < 6, "food").otherwise("furniture")
+    
+
 def main():
     spark = SparkSession.builder \
         .appName("NoUDF") \
